@@ -30,8 +30,6 @@ EXTRA_DIST = \
 	list.h \
 	lucache.h \
 	types.h \
-	user-bitops.h \
-	user-crypto.h \
 	user-lock.h \
 	user-mem.h \
 	user-prim.h \

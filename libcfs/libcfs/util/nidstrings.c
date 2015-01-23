@@ -43,10 +43,14 @@
 #ifndef __KERNEL__
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
 #ifdef HAVE_GETHOSTBYNAME
 #include <netdb.h>
 #endif
 #include <linux/types.h>
+
+#define LIBCFS_FREE(p, size)	free(p)
 
 #include <libcfs/list.h>
 #include <libcfs/libcfs_string.h>
@@ -54,7 +58,6 @@
 #else
 #include <libcfs/libcfs.h>
 #endif
-#include <lnet/types.h>
 #include <lnet/nidstr.h>
 
 /* max value for numeric network address */
@@ -341,13 +344,13 @@ libcfs_ip_str2addr(const char *str, int nob, __u32 *addr)
                 return 1;
         }
 
-#if !defined(__KERNEL__) && defined HAVE_GETHOSTBYNAME
+#ifdef HAVE_GETHOSTBYNAME
         /* known hostname? */
         if (('a' <= str[0] && str[0] <= 'z') ||
             ('A' <= str[0] && str[0] <= 'Z')) {
                 char *tmp;
 
-                LIBCFS_ALLOC(tmp, nob + 1);
+                tmp = calloc(1, nob + 1);
                 if (tmp != NULL) {
                         struct hostent *he;
 
@@ -585,19 +588,20 @@ lnet_nid_t
 libcfs_str2nid(const char *str)
 {
         const char       *sep = strchr(str, '@');
-        struct netstrfns *nf;
+        struct netstrfns *nf = NULL;
         __u32             net;
         __u32             addr;
 
-        if (sep != NULL) {
-                nf = libcfs_str2net_internal(sep + 1, &net);
-                if (nf == NULL)
-                        return LNET_NID_ANY;
-        } else {
+        if (sep == NULL) {
                 sep = str + strlen(str);
                 net = LNET_MKNET(SOCKLND, 0);
                 nf = libcfs_lnd2netstrfns(SOCKLND);
-                LASSERT (nf != NULL);
+	}
+
+	if (nf == NULL) {
+                nf = libcfs_str2net_internal(sep + 1, &net);
+                if (nf == NULL)
+                        return LNET_NID_ANY;
         }
 
         if (!nf->nf_str2addr(str, (int)(sep - str), &addr))
@@ -741,7 +745,7 @@ parse_addrange(const struct cfs_lstr *src, struct nidrange *nidrange)
 		return 0;
 	}
 
-	LIBCFS_ALLOC(addrrange, sizeof(struct addrrange));
+	addrrange = calloc(1, sizeof(struct addrrange));
 	if (addrrange == NULL)
 		return -ENOMEM;
 	list_add_tail(&addrrange->ar_link, &nidrange->nr_addrranges);
@@ -798,7 +802,7 @@ add_nidrange(const struct cfs_lstr *src,
 		return nr;
 	}
 
-	LIBCFS_ALLOC(nr, sizeof(struct nidrange));
+	nr = calloc(1, sizeof(struct nidrange));
 	if (nr == NULL)
 		return NULL;
 	list_add_tail(&nr->nr_link, nidlist);
@@ -840,7 +844,7 @@ parse_nidrange(struct cfs_lstr *src, struct list_head *nidlist)
 
         return 1;
  failed:
-        CWARN("can't parse nidrange: \"%.*s\"\n", tmp.ls_len, tmp.ls_str);
+        fprintf(stderr, "can't parse nidrange: \"%.*s\"\n", tmp.ls_len, tmp.ls_str);
         return 0;
 }
 
@@ -937,7 +941,9 @@ libcfs_num_match(__u32 addr, struct list_head *numaddr)
 {
 	struct cfs_expr_list *el;
 
-	LASSERT(!list_empty(numaddr));
+	if (list_empty(numaddr))
+		return 0;
+
 	el = list_entry(numaddr->next, struct cfs_expr_list, el_link);
 
 	return cfs_expr_list_match(addr, el);
@@ -974,11 +980,11 @@ int cfs_match_nid(lnet_nid_t nid, struct list_head *nidlist)
 static int
 libcfs_num_addr_range_print(char *buffer, int count, struct list_head *list)
 {
-	int i = 0, j = 0;
+	int i = 0; //, j = 0;
 	struct cfs_expr_list *el;
 
 	list_for_each_entry(el, list, el_link) {
-		LASSERT(j++ < 1);
+		//LASSERT(j++ < 1);
 		i += cfs_expr_list_print(buffer + i, count - i, el);
 	}
 	return i;
@@ -987,11 +993,11 @@ libcfs_num_addr_range_print(char *buffer, int count, struct list_head *list)
 static int
 libcfs_ip_addr_range_print(char *buffer, int count, struct list_head *list)
 {
-	int i = 0, j = 0;
+	int i = 0; //, j = 0;
 	struct cfs_expr_list *el;
 
 	list_for_each_entry(el, list, el_link) {
-		LASSERT(j++ < 4);
+		//LASSERT(j++ < 4)
 		if (i != 0)
 			i += cfs_snprintf(buffer + i, count - i, ".");
 		i += cfs_expr_list_print(buffer + i, count - i, el);
@@ -1063,7 +1069,7 @@ int cfs_print_nidlist(char *buffer, int count, struct list_head *nidlist)
 			i += cfs_snprintf(buffer + i, count - i, " ");
 
 		if (nr->nr_all != 0) {
-			LASSERT(list_empty(&nr->nr_addrranges));
+			//LASSERT(list_empty(&nr->nr_addrranges));
 			i += cfs_snprintf(buffer + i, count - i, "*");
 			i += cfs_print_network(buffer + i, count - i, nr);
 		} else {

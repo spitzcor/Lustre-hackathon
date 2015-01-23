@@ -52,7 +52,7 @@ int cfs_str2mask(const char *str, const char *(*bit2str)(int bit),
 /* Allocate space for and copy an existing string.
  * Must free with kfree().
  */
-char *cfs_strdup(const char *str, u_int32_t flags);
+char *cfs_strdup(const char *str, uint32_t flags);
 
 /* safe vsnprintf */
 int cfs_vsnprintf(char *buf, size_t size, const char *fmt, va_list args);
